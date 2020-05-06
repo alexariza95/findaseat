@@ -1,34 +1,15 @@
 import React, { useEffect } from "react";
-import { Image,  StyleSheet, Text, TouchableOpacity, BackHandler, View, Alert } from 'react-native';
+import { Image,  StyleSheet, Platform, Text, TouchableOpacity, BackHandler, View, Alert } from 'react-native';
 import logo from './assets/logo.png';
 import * as ImagePicker from 'expo-image-picker';
 import * as Sharing from 'expo-sharing';
+import uploadToAnonymousFilesAsync from 'anonymous-files';
 
 
 
 export default function App() {
 
   const [selectedImage, setSelectedImage] = React.useState(null);
- /**
-  * Attaches an event listener that handles the android-only hardware
-  * back button
-  * @param  {Function} callback The function to call on click
-  */
-  const handleAndroidBackButton = callback => {
-    BackHandler.addEventListener('hardwareBackPress', () => {
-      callback();
-      return true;
-    });
-  };
-  /**
-   * Removes the event listener in order not to add a new one
-   * every time the view component re-mounts
-   */
-  const removeAndroidBackButtonHandler = () => {
-    BackHandler.removeEventListener('hardwareBackPress', () => {});
-  }
-
-
   let openImagePickerAsync = async () => {
   let permissionResult = await ImagePicker.requestCameraRollPermissionsAsync();
 
@@ -38,21 +19,27 @@ export default function App() {
     }
 
     let pickerResult = await ImagePicker.launchImageLibraryAsync();
+
     console.log(pickerResult);
 
     if (pickerResult.cancelled === true) {
         return;
-      }
-    setSelectedImage({ localUri: pickerResult.uri });
+    }
+    if (Platform.OS === 'web') {
+      let remoteUri = await uploadToAnonymousFilesAsync(pickerResult.uri);
+      setSelectedImage({ localUri: pickerResult.uri, remoteUri });
+    } else {
+      setSelectedImage({ localUri: pickerResult.uri, remoteUri: null });
+    }
   };
 
   let openShareDialogAsync = async () => {
       if (!(await Sharing.isAvailableAsync())) {
-        alert(`Uh oh, sharing isn't available on your platform`);
+        alert(`The image is available for sharing at: ${selectedImage.remoteUri}`);
         return;
       }
 
-      Sharing.shareAsync(selectedImage.localUri);
+      Sharing.shareAsync(selectedImage.remoteUri || selectedImage.localUri);
   };
 
   if (selectedImage !== null) {
@@ -64,9 +51,6 @@ export default function App() {
          />
          <TouchableOpacity onPress={openShareDialogAsync} style={styles.button}>
                    <Text style={styles.buttonText}>Share this picture</Text>
-         </TouchableOpacity>
-         <TouchableOpacity onPress={() => this.props.navigation.goBack()} style={styles.button}>
-                   <Text style={styles.buttonText}>Go back</Text>
          </TouchableOpacity>
      </View>
    );
